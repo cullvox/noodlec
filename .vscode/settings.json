@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.nwdl": "properties",
+        "string.h": "c"
+    }
+}
