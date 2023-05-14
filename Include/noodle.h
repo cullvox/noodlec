@@ -1,13 +1,7 @@
 #ifndef NOODLE_PARSER_H
 #define NOODLE_PARSER_H
 
-#ifndef NOODLE_NO_STDINT
-#   include <stdint.h>
-#endif
-
-#ifndef NOODLE_SIZE
-#define NOODLE_SIZE size_t
-#endif
+#include <stdint.h>
 
 #ifndef NOODLE_NO_STDBOOL_H
     #include <stdbool.h>
@@ -28,7 +22,7 @@
     #include <stdlib.h>
 
     #ifndef NOODLE_MALLOC
-        #define NOODLE_CALLOC(count, type) calloc(count, sizeof(type))
+        #define NOODLE_MALLOC(size) malloc(size)
     #endif
     #ifndef NOODLE_FREE
         #define NOODLE_FREE(ptr) free(ptr)
@@ -63,10 +57,11 @@ typedef enum NoodleType_t
 
 typedef struct Noodle_t Noodle_t;
 typedef struct NoodleGroup_t NoodleGroup_t;
-typedef struct NoodleValue_t NoodleValue_t;
 typedef struct NoodleArray_t NoodleArray_t;
+typedef struct NoodleValue_t NoodleValue_t;
 
-NoodleGroup_t*          noodleParse(const char* pContent, size_t contentSize, char* pErrorBuffer, size_t bufferSize);
+NoodleGroup_t*          noodleParse(const char* pContent, char* pErrorBuffer, size_t bufferSize);
+NoodleGroup_t*          noodleParseFromFile(const char* pPath, char* pErrorBuffer, size_t bufferSize);
 NoodleGroup_t*          noodleGroupFrom(const NoodleGroup_t* group, const char* name);
 int                     noodleIntFrom(const NoodleGroup_t* group, const char* name);
 float                   noodleFloatFrom(const NoodleGroup_t* group, const char* name);
