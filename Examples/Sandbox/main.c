@@ -1,3 +1,4 @@
+#include <stdio.h>
 
 #include "noodle.h"
 
@@ -47,5 +48,7 @@ int main(int argc, const char* argv[])
     char pErrorBuffer[256] = {0};
 
     noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
+
+	printf("%s", pContent);
 
 }
