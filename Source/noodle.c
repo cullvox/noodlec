@@ -8,7 +8,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #define NOODLE_GROUP_BUCKETS_COUNT 16
-#define NOODLE_ARRAY_DEFAULT_CAPACITY 8
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRUCTURE DEFINITIONS
@@ -38,7 +37,7 @@ typedef struct NoodleGroup_t
 typedef struct NoodleValue_t
 {
     Noodle_t    base;
-    union       value
+    union
     {
         int         i;
         float       f;
@@ -47,14 +46,24 @@ typedef struct NoodleValue_t
     };
 } NoodleValue_t;
 
+typedef struct NoodleElement_t
+{
+    union
+    {
+        int         i;
+        float       f;
+        NOODLE_BOOL b;
+        char*       s; // Must be freed
+    };
+    struct NoodleElement_t* pNext;
+} NoodleElement_t;
+
 typedef struct NoodleArray_t
 {
-    Noodle_t base;
-    NoodleType_t type;
-    size_t typeSize;
-    size_t count;
-    size_t capacity;
-    void* pValues; // Must be freed
+    Noodle_t        base;
+    NoodleType_t    type;
+    NoodleElement_t* pFirst;
+    NoodleElement_t* pLast;
 } NoodleArray_t;
 
 typedef enum NoodleTokenKind_t
@@ -368,43 +377,6 @@ char* noodleStrdup(const char* pStr)
     return memcpy(pNewStr, pStr, length);
 }
 
-void noodleRemoveSpacesAndComments(char* pContent)
-{
-    char* pD = pContent;
-    NOODLE_BOOL isString = false;
-
-    do
-    {
-        // Only remove if they aren't in a string
-        if (!isString)
-        {
-            // Remove comments until a \n
-            if (*pD == '#')
-            {
-                while (*pD != '\0' || *pD != '\n')
-                {
-                    ++pD;
-                }
-            }
-
-            // Remove all spaces
-            while(noodleLexerIsSpace(*pD))
-            {
-                ++pD;
-            }
-        }
-
-        // Do not remove spaces in quotes
-        if (*pD == '\"')
-        {
-            isString = !isString;
-        }
-
-    } while (*pContent++ = *pD++);
-    
-    *pD = 0;
-}
-
 NoodleGroup_t* noodleMakeGroup(char* pName, NoodleGroup_t* pParent)
 {
     assert(pName);
@@ -432,25 +404,6 @@ NoodleArray_t* noodleMakeArray(char* pName, NoodleType_t type, NoodleGroup_t* pP
 {
     assert(pName);
 
-    size_t typeSize;
-    switch (type)
-    {
-        case NOODLE_TYPE_INTEGER:
-            typeSize = sizeof(int);
-            break;
-        case NOODLE_TYPE_FLOAT:
-            typeSize = sizeof(float);
-            break;
-        case NOODLE_TYPE_BOOLEAN:
-            typeSize = sizeof(NOODLE_BOOL);
-            break;
-        case NOODLE_TYPE_STRING:
-            typeSize = sizeof(char*);
-            break;
-        default:
-            return NULL;
-    }
-
     NoodleArray_t* pArray = NOODLE_MALLOC(sizeof(NoodleArray_t));
     Noodle_t* pNoodle = (Noodle_t*)pArray;
     if (!pArray)
@@ -462,15 +415,8 @@ NoodleArray_t* noodleMakeArray(char* pName, NoodleType_t type, NoodleGroup_t* pP
     pNoodle->pParent = pParent;
     pNoodle->type = NOODLE_TYPE_ARRAY;
     pArray->type = type;
-    pArray->count = 0;
-    pArray->capacity = NOODLE_ARRAY_DEFAULT_CAPACITY;
-    pArray->pValues = NOODLE_MALLOC(typeSize);
-
-    if (!pArray->pValues) 
-    {
-        NOODLE_FREE(pArray);
-        return NULL;
-    }
+    pArray->pFirst = NULL;
+    pArray->pLast = NULL;
 
     return pArray;
 }
@@ -589,20 +535,42 @@ NOODLE_BOOL noodleGroupInsert(NoodleGroup_t* pGroup, const char* pName, Noodle_t
     return true;
 }
 
-NOODLE_BOOL noodleArrayPushBack(NoodleArray_t* pArray, void* pValue)
+NOODLE_BOOL noodleArrayAdd(NoodleArray_t* pArray, void* pValue)
 {
     assert(pArray && pValue);
-    
-    if (pArray->capacity <= pArray->count)
+
+    // Allocate the noodle element
+    NoodleElement_t* pElement = NOODLE_MALLOC(sizeof(NoodleElement_t));
+    if (!pElement) return NOODLE_FALSE;
+
+    switch (pArray->type)
     {
-        
+        case NOODLE_TYPE_INTEGER:
+            pElement->i = *((int*)pValue);
+            break;
+        case NOODLE_TYPE_FLOAT:
+            pElement->f = *((float*)pValue);
+            break;
+        case NOODLE_TYPE_BOOLEAN:
+            pElement->b = *((NOODLE_BOOL*)pValue);
+            break;
+        case NOODLE_TYPE_STRING:
+            pElement->s = (char*)pValue;
+            break;
     }
 
-    char* pValues =  pArray->pValues;
+    // Add the element to the end of the linked list
+    if (pArray->pLast)
+    {
+        pArray->pLast->pNext = pElement;
+    }
+    else
+    {
+        pArray->pFirst = pElement;
+        pArray->pLast = pElement;
+    }
 
-    //pValues[pArray->pCount * ];
-
-    return false;
+    return NOODLE_TRUE;
 }
 
 const char* noodleTokenKindToString(NoodleTokenKind_t kind)
@@ -861,11 +829,11 @@ void noodleLexerSkipComment(NoodleLexer_t* pLexer)
 
 void noodleLexerSkipSpaces(NoodleLexer_t* pLexer)
 {
-    char c = 0;
-    do
+    char c = noodleLexerPeek(pLexer);
+    while (c!= '\0' && noodleLexerIsSpace(c))
     {
         c = noodleLexerGet(pLexer);
-    } while (c!= '\0' && noodleLexerIsSpace(c));
+    }
 }
 
 NoodleToken_t noodleLexerMakeAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind)
@@ -877,9 +845,12 @@ NoodleToken_t noodleLexerMakeIdentifier(NoodleLexer_t* pLexer)
 {
     int start = pLexer->current;
 
-    while(noodleLexerIsIdentifier(noodleLexerGet(pLexer))) {}
+    while(noodleLexerIsIdentifier(noodleLexerPeek(pLexer))) 
+    {
+        noodleLexerGet(pLexer);
+    }
 
-    return (NoodleToken_t){ NOODLE_TOKEN_KIND_IDENTIFIER, start, pLexer->current-1 };
+    return (NoodleToken_t){ NOODLE_TOKEN_KIND_IDENTIFIER, start, pLexer->current };
 }
 
 NoodleToken_t noodleLexerMakeNumber(NoodleLexer_t* pLexer)
