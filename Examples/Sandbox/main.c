@@ -49,6 +49,5 @@ int main(int argc, const char* argv[])
 
     noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
 
-	printf("%s", pContent);
-
+	printf("%s\n", pContent);
 }
