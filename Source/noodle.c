@@ -3,15 +3,27 @@
 
 #include "noodle.h"
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // MACROS
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
 #define NOODLE_GROUP_BUCKETS_COUNT 16
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRUCTURE DEFINITIONS
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 typedef struct Noodle_t
 {
@@ -62,8 +74,14 @@ typedef struct NoodleArray_t
 {
     Noodle_t        base;
     NoodleType_t    type;
-    NoodleElement_t* pFirst;
-    NoodleElement_t* pLast;
+    int             count;
+    union
+    {
+        int*        pIntegers;
+        float*      pFloats;
+        NOODLE_BOOL* pBooleans;
+        char**      ppStrings;
+    };
 } NoodleArray_t;
 
 typedef enum NoodleTokenKind_t
@@ -100,43 +118,62 @@ typedef struct NoodleLexer_t
     int character;
 } NoodleLexer_t;
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // HELPER DECLARATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-char*           noodleStrdup(const char* str);
-void            noodleRemoveSpacesAndComments(char* pContent);
-const char*     noodleTokenKindToString(NoodleTokenKind_t kind);
 
-NoodleGroup_t*  noodleParserHandleGroup(char* pName, NoodleGroup_t* pParent);
-NoodleArray_t*  noodleMakeArray(char* pName, NoodleType_t type, NoodleGroup_t* pParent);
-NoodleValue_t*  noodleParserHandleInt(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent);
-NoodleValue_t*  noodleParserHandleFloat(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent);
-NoodleValue_t*  noodleMakeBoolValue(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent);
-NoodleValue_t*  noodleMakeStringValue(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent);
+
+
+char*           noodleStringDuplicate(const char* str);
+const char*     noodleStringFromTokenKind(NoodleTokenKind_t kind);
+
+NoodleToken_t   noodleToken(NoodleTokenKind_t kind, int start, int end);
+
+char            noodleLexerGet(NoodleLexer_t* pLexer);
+char            noodleLexerPeek(const NoodleLexer_t* pLexer);
+void            noodleLexerSkipComment(NoodleLexer_t* pLexer);
+void            noodleLexerSkipSpaces(NoodleLexer_t* pLexer);
+void            noodleLexerAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind, NoodleToken_t* pToken);
+void            noodleLexerIdentifier(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
+void            noodleLexerNumber(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
+void            noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
+
+NOODLE_BOOL     noodleLexerIsIdentifier(char);
+NOODLE_BOOL     noodleLexerIsNumber(char);
+NOODLE_BOOL     noodleLexerIsSpace(char);
+
+NoodleLexer_t   noodleLexer(const char* pContent);
+NOODLE_BOOL     noodleLexerNextToken(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
+
+int             noodleParseInt(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken);
+float           noodleParseFloat(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken);
+NOODLE_BOOL     noodleParseBool(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken);
+char*           noodleParseString(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken);
+
+NoodleGroup_t*  noodleGroup(char* pName, NoodleGroup_t* pParent);
+NoodleArray_t*  noodleArray(char* pName, NoodleType_t type, NoodleGroup_t* pParent);
+NoodleValue_t*  noodleValue(char* pName, NoodleType_t type, NoodleGroup_t* pParent);
+NoodleValue_t*  noodleInt(char* pName, int value, NoodleGroup_t* pParent);
+NoodleValue_t*  noodleFloat(char* pName, float value, NoodleGroup_t* pParent);
+NoodleValue_t*  noodleBool(char* pName, NOODLE_BOOL value, NoodleGroup_t* pParent);
+NoodleValue_t*  noodleString(char* pName, char* value, NoodleGroup_t* pParent);
 
 size_t          noodleGroupHashFunction(const char* pName);
 NOODLE_BOOL     noodleGroupInsert(NoodleGroup_t* pGroup, const char* pName, Noodle_t* pNoodle);
 
-NOODLE_BOOL     noodleArrayPushBack(NoodleArray_t* pArray, void* pValue);
 
-NOODLE_BOOL     noodleLexerIsIdentifier(char c);
-NOODLE_BOOL     noodleLexerIsNumber(char c);
-NOODLE_BOOL     noodleLexerIsSpace(char c);
-NoodleLexer_t   noodleLexer(const char* pContent);
-char            noodleLexerGet(NoodleLexer_t* pLexer);
-char            noodleLexerPeek(NoodleLexer_t* pLexer);
-void            noodleLexerSkipComment(NoodleLexer_t* pLexer);
-void            noodleLexerSkipSpaces(NoodleLexer_t* pLexer);
-NoodleToken_t   noodleLexerNext(NoodleLexer_t* pLexer);
-NoodleToken_t   noodleLexerMakeAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind);
-NoodleToken_t   noodleLexerMakeIdentifier(NoodleLexer_t* pLexer);
-NoodleToken_t   noodleLexerMakeNumber(NoodleLexer_t* pLexer);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // FUNCTION DEFINITIONS
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t bufferSize)
 {
@@ -157,12 +194,14 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
     printf("%s", pContent); // DEBUG
 
     // Create the root group to contain the other noodles
-    NoodleGroup_t* pRoot = noodleParserHandleGroup(NULL, NULL);
+    NoodleGroup_t* pRoot = noodleGroup(NULL, NULL);
     if (!pRoot) goto cleanupMemory;
     
     // Create the lexer and begin parsing
     NoodleLexer_t lexer = noodleLexer(pContent);
-    NoodleToken_t token = noodleLexerNext(&lexer);
+    NoodleToken_t token = {0};
+
+    noodleLexerNextToken(&lexer, &token);
 
     const char* pErrorExpected = ""; // On failure use this value is set to hint what the error is
     NoodleGroup_t* pCurrent = pRoot; // Used to parent noodles
@@ -176,17 +215,10 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
             goto cleanupParse;
         }
 
-        // Create the noodle's identifier string
-        int identifierLength = token.end - token.start + 1; // Convert indexes into counts
-        char* pIdentifier = NOODLE_MALLOC(identifierLength + 1);
-        if (!pIdentifier) goto cleanupMemory;
-
-        // Set the identifier string's contents
-        memset(pIdentifier, 0, identifierLength + 1);
-        memcpy(pIdentifier, pContent + token.start, identifierLength);
+        char* pIdentifier = noodleParseString(&lexer, &token);
 
         // Get the equals token
-        token = noodleLexerNext(&lexer);
+        noodleLexerNextToken(&lexer, &token);
 
         if (token.kind != NOODLE_TOKEN_KIND_EQUAL)
         {
@@ -195,51 +227,38 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
         }
 
         // This next token will determine the type of noodle to create
-        token = noodleLexerNext(&lexer);
+        noodleLexerNextToken(&lexer, &token);
 
         Noodle_t* pNewNoodle = NULL;
 
         switch (token.kind)
         {
             case NOODLE_TOKEN_KIND_LEFTCURLY:
-            {
-                NoodleGroup_t* pGroup = noodleParserHandleGroup(pIdentifier, pRoot);
-                pNewNoodle = (Noodle_t*)pGroup;
-                pCurrent = pGroup;
+                pNewNoodle = (Noodle_t*)noodleGroup(pIdentifier, pRoot);
                 break;
-            }
-
             case NOODLE_TOKEN_KIND_INTEGER:
-            {   
-                pNewNoodle = (Noodle_t*)noodleParserHandleInt(pIdentifier, &lexer, &token, pCurrent);
+                pNewNoodle = (Noodle_t*)noodleInt(pIdentifier, noodleParseInt(&lexer, &token), pCurrent);
                 break;
-            }
-
             case NOODLE_TOKEN_KIND_FLOAT:
-            {   
-                pNewNoodle = (Noodle_t*)noodleParserHandleFloat(pIdentifier, &lexer, &token, pCurrent);
+                pNewNoodle = (Noodle_t*)noodleFloat(pIdentifier, noodleParseFloat(&lexer, &token), pCurrent);
                 break;
-            }
-
             case NOODLE_TOKEN_KIND_BOOLEAN:
-            {
-                pNewNoodle = (Noodle_t*)noodleMakeBoolValue(pIdentifier, &lexer, &token, pCurrent);
+                pNewNoodle = (Noodle_t*)noodleBool(pIdentifier, noodleParseBool(&lexer, &token), pCurrent);
                 break;
-            }
-
             case NOODLE_TOKEN_KIND_STRING:
             {
-                pNewNoodle = noodleMakeStringValue(pIdentifier, &lexer, &token, pCurrent);
+                char* pString = noodleParseString(&lexer, &token);
+                if (!pString) goto cleanupMemory;
+
+                pNewNoodle = (Noodle_t*)noodleString(pIdentifier, pString, pCurrent);
                 break;
             }
-
             case NOODLE_TOKEN_KIND_LEFTBRACKET:
             {
+                int arrayStart = token.start;
 
-                NoodleArray_t* pArray = NULL; // TODO
-                
                 // Get the next token to get it's type and ensure it can be in an array 
-                token = noodleLexerNext(pLexer);
+                noodleLexerNextToken(&lexer, &token);
 
                 if (token.kind != NOODLE_TOKEN_KIND_INTEGER && 
                     token.kind != NOODLE_TOKEN_KIND_FLOAT &&
@@ -252,8 +271,9 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
 
                 // Get the next few tokens until the end of the array
                 NoodleTokenKind_t expected = token.kind;
-                int arrayStart = token.start;
-                int arrayCount = 0;
+                
+                NoodleArray_t* pArray = noodleArray(pIdentifier, NOODLE_TYPE_ARRAY, pCurrent);
+                if (!pArray) goto cleanupMemory;
 
                 // Loop through all the tokens of the array to get the count and verification of type
                 while (token.kind != NOODLE_TOKEN_KIND_RIGHTBRACKET)
@@ -261,18 +281,18 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
                     // Make sure that the token is the one we expect in the array
                     if (token.kind != expected)
                     {
-                        pErrorExpected = noodleTokenKindToString(expected);
+                        pErrorExpected = noodleStringFromTokenKind(expected);
                         goto cleanupParse;
                     }
 
-                    arrayCount++;
+                    pArray->count++;
 
                     // Expect a ',' or a ']'
-                    token = noodleLexerNext(&lexer);
+                    noodleLexerNextToken(&lexer, &token);
 
                     if (token.kind == NOODLE_TOKEN_KIND_COMMA)
                     {
-                        token = noodleLexerNext(&lexer);
+                        noodleLexerNextToken(&lexer, &token);
                         continue;
                     }
                 }
@@ -281,37 +301,88 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
                 lexer.current = arrayStart;
 
                 // Allocate the array of values
-                union
-                {
-                    int* pI;
-                    float* pF;
-                    NOODLE_BOOL* pB;
-                    char** ppS;
-                } array;
-
                 switch (expected)
                 {
-                    case NOODLE_TOKEN_KIND_INTEGER: 
+                    case NOODLE_TOKEN_KIND_INTEGER:
                         pArray->type = NOODLE_TYPE_INTEGER;
-                        p
+                        pArray->pIntegers = NOODLE_MALLOC(sizeof(int) * pArray->count);
+                        break;
+
+                    case NOODLE_TOKEN_KIND_FLOAT:
+                        pArray->type = NOODLE_TYPE_FLOAT;
+                        pArray->pFloats = NOODLE_MALLOC(sizeof(float) * pArray->count);
+                        break;
+
+                    case NOODLE_TOKEN_KIND_BOOLEAN:
+                        pArray->type = NOODLE_TYPE_BOOLEAN;
+                        pArray->pBooleans = NOODLE_MALLOC(sizeof(NOODLE_BOOL) * pArray->count);
+                        break;
+
+                    case NOODLE_TOKEN_KIND_STRING:
+                        pArray->type = NOODLE_TYPE_STRING;
+                        pArray->ppStrings = NOODLE_MALLOC(sizeof(char*) * pArray->count);
+                        break;
                 }
 
-                // Iterate through the values once again, verified and with a count
+                // Check if the array was allocated correctly using ints value of the union 
+                if (!pArray->pIntegers) goto cleanupMemory;
+
+                // Iterate through the values once again, to set the array
+                noodleLexerNextToken(&lexer, &token);
+
+                int i = 0;
                 while (token.kind != NOODLE_TOKEN_KIND_RIGHTBRACKET)
                 {
+                    switch (expected)
+                    {
+                        case NOODLE_TOKEN_KIND_INTEGER:
+                            pArray->pIntegers[i] = noodleParseInt(&lexer, &token);
+                            break;
+                        case NOODLE_TOKEN_KIND_FLOAT:
+                            pArray->pFloats[i] = noodleParseFloat(&lexer, &token);
+                            break;
+                        case NOODLE_TOKEN_KIND_BOOLEAN:
+                            pArray->pBooleans[i] = noodleParseBool(&lexer, &token); 
+                            break;
+                        case NOODLE_TOKEN_KIND_STRING:
+                        {
+                            char* pString = noodleParseString(&lexer, &token);
+                            if (!pString) goto cleanupMemory;
+
+                            pArray->ppStrings[i] = pString;
+                            break;
+                        }
+                    }
+
+                    i++;
+
+                    noodleLexerNextToken(&lexer, &token);
                     
+                    if (token.kind == NOODLE_TOKEN_KIND_COMMA)
+                    {
+                        noodleLexerNextToken(&lexer, &token);
+                        continue;
+                    }
                 }
-                
+
+                pNewNoodle = (Noodle_t*)pArray;
+                break;
             }
         }
 
-        if (!pNewNoodle)
+        if (!pNewNoodle || 
+            !noodleGroupInsert(pCurrent, pIdentifier, pNewNoodle)) 
             goto cleanupMemory;
 
-        if (!noodleGroupInsert(pCurrent, pIdentifier, pNewNoodle)) 
-            goto cleanupMemory;
+        if (pNewNoodle->type == NOODLE_TYPE_GROUP)
+        {
+            pCurrent = (NoodleGroup_t*)pNewNoodle;
+
+        }
+
+        if (token.kind == NOODLE_TOKEN_KIND_COMMA)
+
         
-
 
     }
 
@@ -327,7 +398,7 @@ cleanupMemory:
     return NULL;
 
 cleanupParse:
-    snprintf(pErrorBuffer, bufferSize, "Unexpected token found, \"%.*s\", expected token, \"%s\"!", token.end - token.start, pContent, pErrorExpected);
+    snprintf(pErrorBuffer, bufferSize, "(Ln %i, Col %i) Unexpected token found, \"%.*s\", expected token, \"%s\"!", lexer.line, lexer.character, token.end - token.start, pContent, pErrorExpected);
     noodleFree((Noodle_t*)pRoot);
     return NULL;
 
@@ -351,10 +422,23 @@ void noodleFree(Noodle_t* pNoodle)
     {
         case NOODLE_TYPE_GROUP:
             NoodleGroup_t* pGroup = (NoodleGroup_t*)pNoodle;
+            NoodleNode_t* pNode = NULL;
+            NoodleNode_t* pToFree = NULL;
 
             for (int i = 0; i < pGroup->bucketCount; i++)
             {
+                pNode = pGroup->ppBuckets[i];    
+                
+                while (pNode != NULL)
+                {
+                    noodleFree(pNode->pNoodle);
 
+                    pToFree = pNode;
+                    pNode = pNode->pNext;
+                    
+                    NOODLE_FREE(pToFree);
+                    pToFree = NULL;
+                }
             }
             break;
     }
@@ -364,7 +448,7 @@ void noodleFree(Noodle_t* pNoodle)
 // HELPER FUNCTION DEFINITIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-char* noodleStrdup(const char* pStr)
+char* noodleStringDuplicate(const char* pStr)
 {
     size_t length = strlen(pStr) + 1;
     char* pNewStr = NOODLE_MALLOC(length);
@@ -375,7 +459,77 @@ char* noodleStrdup(const char* pStr)
     return memcpy(pNewStr, pStr, length);
 }
 
-NoodleGroup_t* noodleParserHandleGroup(char* pName, NoodleGroup_t* pParent)
+const char* noodleStringFromTokenKind(NoodleTokenKind_t kind)
+{
+    switch (kind)
+    {
+        case NOODLE_TOKEN_KIND_IDENTIFIER: return "Identifier"; 
+        case NOODLE_TOKEN_KIND_INTEGER: return "Integer"; 
+        case NOODLE_TOKEN_KIND_FLOAT: return "Float"; 
+        case NOODLE_TOKEN_KIND_BOOLEAN: return "Boolean"; 
+        case NOODLE_TOKEN_KIND_STRING: return "String"; 
+        case NOODLE_TOKEN_KIND_LEFTCURLY: return "Left Curly"; 
+        case NOODLE_TOKEN_KIND_RIGHTCURLY: return "Right Curly"; 
+        case NOODLE_TOKEN_KIND_LEFTBRACKET: return "Left Bracket"; 
+        case NOODLE_TOKEN_KIND_RIGHTBRACKET: return "Right Bracket"; 
+        case NOODLE_TOKEN_KIND_EQUAL: return "Equal"; 
+        case NOODLE_TOKEN_KIND_COMMA: return "Comma"; 
+        case NOODLE_TOKEN_KIND_END: return "End"; 
+        case NOODLE_TOKEN_KIND_COMMENT: return "Comment"; 
+        case NOODLE_TOKEN_KIND_NEWLINE: return "Newline"; 
+        
+        default:
+        case NOODLE_TOKEN_KIND_UNEXPECTED: return "Unexpected"; 
+    }
+}
+
+NoodleToken_t noodleToken(NoodleTokenKind_t kind, int start, int end)
+{
+    return (NoodleToken_t){kind, start, end};
+}
+
+int noodleParseInt(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken)
+{
+    assert(pLexer);
+    assert(pToken);
+    assert(pToken->kind == NOODLE_TOKEN_KIND_INTEGER);
+
+    return (int)strtol(pLexer->pContent + pToken->start, NULL, 10);
+}
+
+float noodleParseFloat(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken)
+{
+    assert(pLexer);
+    assert(pToken);
+    assert(pToken->kind == NOODLE_TOKEN_KIND_FLOAT);
+
+    return strtof(pLexer->pContent + pToken->start, NULL);
+}
+
+NOODLE_BOOL noodleParseBool(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken)
+{
+    assert(pLexer);
+    assert(pToken);
+    assert(pToken->kind == NOODLE_TOKEN_KIND_BOOLEAN);
+    
+    return (*(pLexer->pContent + pToken->start) == 't') ? NOODLE_TRUE : NOODLE_FALSE;   
+}
+
+char* noodleParseString(const NoodleLexer_t* pLexer, const NoodleToken_t* pToken)
+{
+    // Need to allocate a new string
+    int stringLength = pToken->end - pToken->start; // Convert indexes into counts
+    char* pString = NOODLE_MALLOC(stringLength + 1);
+    if (!pString) return NULL;
+
+    // Set the identifier string's contents
+    memset(pString, 0, stringLength + 1);
+    memcpy(pString, pLexer->pContent + pToken->start, stringLength);
+    
+    return pString;
+}
+
+NoodleGroup_t* noodleGroup(char* pName, NoodleGroup_t* pParent)
 {
     // Allocate the group and cast to the noodle base composition
     NoodleGroup_t* pGroup = NOODLE_MALLOC(sizeof(NoodleGroup_t));
@@ -396,7 +550,7 @@ NoodleGroup_t* noodleParserHandleGroup(char* pName, NoodleGroup_t* pParent)
     return pGroup;
 }
 
-NoodleArray_t* noodleMakeArray(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent)
+NoodleArray_t* noodleArray(char* pName, NoodleType_t type, NoodleGroup_t* pParent)
 {
     assert(pName);
 
@@ -411,97 +565,71 @@ NoodleArray_t* noodleMakeArray(char* pName, NoodleLexer_t* pLexer, NoodleToken_t
     pNoodle->pParent = pParent;
     pNoodle->type = NOODLE_TYPE_ARRAY;
     pArray->type = type;
-    pArray->pFirst = NULL;
-    pArray->pLast = NULL;
+    pArray->count = 0;
+    pArray->pIntegers = NULL;
 
-    
     return pArray;
 }
 
-NoodleValue_t* noodleParserHandleInt(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent)
+NoodleValue_t* noodleValue(char* pName, NoodleType_t type, NoodleGroup_t* pParent)
 {
     assert(pName);
-    assert(pToken);
-    assert(pToken->kind == NOODLE_TOKEN_KIND_INTEGER);
-
-    int value = (int)strtol(pLexer->pContent + pToken->start, NULL, 10);
 
     NoodleValue_t* pValue = NOODLE_MALLOC(sizeof(NoodleValue_t));
-    Noodle_t* pNoodle = (Noodle_t*)pValue;
-    if (!pValue)
-    {
-        return NULL;
-    }
+    if (!pValue) return NULL;
 
+    Noodle_t* pNoodle = (Noodle_t*)pValue;
     pNoodle->pName = pName;
+    pNoodle->type = type;
     pNoodle->pParent = pParent;
-    pNoodle->type = NOODLE_TYPE_INTEGER;
+
+    return pValue;
+}
+
+NoodleValue_t* noodleInt(char* pName, int value, NoodleGroup_t* pParent)
+{
+    assert(pName);
+
+    NoodleValue_t* pValue = noodleValue(pName, NOODLE_TYPE_INTEGER, pParent);
+    if (!pValue) return NULL;
+
     pValue->i = value;
 
     return pValue;
 }
 
-NoodleValue_t* noodleParserHandleFloat(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent)
+NoodleValue_t* noodleFloat(char* pName, float value, NoodleGroup_t* pParent)
 {
     assert(pName);
 
-    float value = strtof(pLexer->pContent + pToken->start, NULL);
-
-    NoodleValue_t* pValue = NOODLE_MALLOC(sizeof(NoodleValue_t));
-    Noodle_t* pNoodle = (Noodle_t*)pValue;
+    NoodleValue_t* pValue = noodleValue(pName, NOODLE_TYPE_FLOAT, pParent);
     if (!pValue) return NULL;
 
-    pNoodle->pName = pName;
-    pNoodle->pParent = pParent;
-    pNoodle->type = NOODLE_TYPE_FLOAT;
     pValue->f = value;
 
     return pValue;
 }
 
-NoodleValue_t* noodleMakeBoolValue(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent)
+NoodleValue_t* noodleBool(char* pName, NOODLE_BOOL value, NoodleGroup_t* pParent)
 {
     assert(pName);
-    assert(pLexer);
-    assert(pToken);
-    assert(pToken->kind == NOODLE_TOKEN_KIND_BOOLEAN);
 
-    bool value = (*(pLexer->pContent + pToken->start) == 't') ? NOODLE_TRUE : NOODLE_FALSE;
-
-    NoodleValue_t* pValue = NOODLE_MALLOC(sizeof(NoodleValue_t));
-    Noodle_t* pNoodle = (Noodle_t*)pValue;
+    NoodleValue_t* pValue = noodleValue(pName, NOODLE_TYPE_BOOLEAN, pParent);
     if (!pValue) return NULL;
 
-    pNoodle->pName = pName;
-    pNoodle->pParent = pParent;
-    pNoodle->type = NOODLE_TYPE_BOOLEAN;
     pValue->b = value;
 
     return pValue;
 }
 
-NoodleValue_t* noodleMakeStringValue(char* pName, NoodleLexer_t* pLexer, NoodleToken_t* pToken, NoodleGroup_t* pParent)
+NoodleValue_t* noodleString(char* pName, char* pStrValue, NoodleGroup_t* pParent)
 {
     assert(pName);
 
-    // Create the noodle's string
-    size_t stringLength = pToken->end - pToken->start; 
-    char* pString = NOODLE_MALLOC(stringLength + 1);
-
-    if (!pString) return NULL;
-
-    // Set the string's contents
-    memset(pString, 0, stringLength + 1);
-    memcpy(pString, pLexer->pContent + pToken->start, stringLength);
-
-    NoodleValue_t* pValue = NOODLE_MALLOC(sizeof(NoodleValue_t));
-    Noodle_t* pNoodle = (Noodle_t*)pValue;
+    NoodleValue_t* pValue = noodleValue(pName, NOODLE_TYPE_STRING, pParent);
     if (!pValue) return NULL;
 
-    pNoodle->pName = pName;
-    pNoodle->pParent = pParent;
-    pNoodle->type = NOODLE_TYPE_STRING;
-    pValue->s = pString;
+    pValue->s = pStrValue;
 
     return pValue;
 }
@@ -551,68 +679,6 @@ NOODLE_BOOL noodleGroupInsert(NoodleGroup_t* pGroup, const char* pName, Noodle_t
 
     pCurrent->pNext = pNode;
     return true;
-}
-
-NOODLE_BOOL noodleArrayAdd(NoodleArray_t* pArray, void* pValue)
-{
-    assert(pArray && pValue);
-
-    // Allocate the noodle element
-    NoodleElement_t* pElement = NOODLE_MALLOC(sizeof(NoodleElement_t));
-    if (!pElement) return NOODLE_FALSE;
-
-    switch (pArray->type)
-    {
-        case NOODLE_TYPE_INTEGER:
-            pElement->i = *((int*)pValue);
-            break;
-        case NOODLE_TYPE_FLOAT:
-            pElement->f = *((float*)pValue);
-            break;
-        case NOODLE_TYPE_BOOLEAN:
-            pElement->b = *((NOODLE_BOOL*)pValue);
-            break;
-        case NOODLE_TYPE_STRING:
-            pElement->s = (char*)pValue;
-            break;
-    }
-
-    // Add the element to the end of the linked list
-    if (pArray->pLast)
-    {
-        pArray->pLast->pNext = pElement;
-    }
-    else
-    {
-        pArray->pFirst = pElement;
-        pArray->pLast = pElement;
-    }
-
-    return NOODLE_TRUE;
-}
-
-const char* noodleTokenKindToString(NoodleTokenKind_t kind)
-{
-    switch (kind)
-    {
-        case NOODLE_TOKEN_KIND_IDENTIFIER: return "Identifier"; 
-        case NOODLE_TOKEN_KIND_INTEGER: return "Integer"; 
-        case NOODLE_TOKEN_KIND_FLOAT: return "Float"; 
-        case NOODLE_TOKEN_KIND_BOOLEAN: return "Boolean"; 
-        case NOODLE_TOKEN_KIND_STRING: return "String"; 
-        case NOODLE_TOKEN_KIND_LEFTCURLY: return "Left Curly"; 
-        case NOODLE_TOKEN_KIND_RIGHTCURLY: return "Right Curly"; 
-        case NOODLE_TOKEN_KIND_LEFTBRACKET: return "Left Bracket"; 
-        case NOODLE_TOKEN_KIND_RIGHTBRACKET: return "Right Bracket"; 
-        case NOODLE_TOKEN_KIND_EQUAL: return "Equal"; 
-        case NOODLE_TOKEN_KIND_COMMA: return "Comma"; 
-        case NOODLE_TOKEN_KIND_END: return "End"; 
-        case NOODLE_TOKEN_KIND_COMMENT: return "Comment"; 
-        case NOODLE_TOKEN_KIND_NEWLINE: return "Newline"; 
-        
-        default:
-        case NOODLE_TOKEN_KIND_UNEXPECTED: return "Unexpected"; 
-    }
 }
 
 NoodleLexer_t noodleLexer(const char* pContent)
@@ -720,7 +786,7 @@ NOODLE_BOOL noodleLexerIsSpace(char c)
     }
 }
 
-NoodleToken_t noodleLexerNext(NoodleLexer_t* pLexer)
+NOODLE_BOOL noodleLexerNextToken(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 {
     switch(noodleLexerPeek(pLexer))
     {
@@ -777,7 +843,8 @@ NoodleToken_t noodleLexerNext(NoodleLexer_t* pLexer)
         case 'Y':
         case 'Z':
         case '_':
-            return noodleLexerMakeIdentifier(pLexer);
+            noodleLexerIdentifier(pLexer, pTokenOut);
+            break;
         case '0':
         case '1':
         case '2':
@@ -788,16 +855,32 @@ NoodleToken_t noodleLexerNext(NoodleLexer_t* pLexer)
         case '7':
         case '8':
         case '9':
-            return noodleLexerMakeNumber(pLexer);
+            noodleLexerNumber(pLexer, pTokenOut);
+            break;
         case '=':
-            return noodleLexerMakeAtom(pLexer, NOODLE_TOKEN_KIND_EQUAL);
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_EQUAL, pTokenOut);
+            break;
         case '{':
-            return noodleLexerMakeAtom(pLexer, NOODLE_TOKEN_KIND_LEFTCURLY);
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_LEFTCURLY, pTokenOut);
+            break;
         case '}':
-            return noodleLexerMakeAtom(pLexer, NOODLE_TOKEN_KIND_RIGHTCURLY);
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_RIGHTCURLY, pTokenOut);
+            break;
+        case '[':
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_LEFTBRACKET, pTokenOut);
+            break;
+        case ']':
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_RIGHTBRACKET, pTokenOut);
+            break;
+        case '\"':
+            noodleLexerString(pLexer, pTokenOut);
+            break;
+        case ',':
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_COMMA, pTokenOut);
+            break;
         case '#':
             noodleLexerSkipComment(pLexer);
-            return noodleLexerNext(pLexer);
+            return noodleLexerNextToken(pLexer, pTokenOut);
         case ' ':
         case '\n':
         case '\t':
@@ -805,12 +888,16 @@ NoodleToken_t noodleLexerNext(NoodleLexer_t* pLexer)
         case '\f':
         case '\r':
             noodleLexerSkipSpaces(pLexer);
-            return noodleLexerNext(pLexer);
+            return noodleLexerNextToken(pLexer, pTokenOut);
         case '\0':
-            return noodleLexerMakeAtom(pLexer, NOODLE_TOKEN_KIND_END);
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_END, pTokenOut);
+            break;
         default:
-            return noodleLexerMakeAtom(pLexer, NOODLE_TOKEN_KIND_UNEXPECTED);
+            noodleLexerAtom(pLexer, NOODLE_TOKEN_KIND_UNEXPECTED, pTokenOut);
+            return NOODLE_FALSE;
     }
+
+    return true;
 }
 
 char noodleLexerGet(NoodleLexer_t* pLexer)
@@ -831,9 +918,9 @@ char noodleLexerGet(NoodleLexer_t* pLexer)
     return c;
 }
 
-char noodleLexerPeek(NoodleLexer_t* pLexer)
+char noodleLexerPeek(const NoodleLexer_t* pLexer)
 {
-    return pLexer->pContent[pLexer->current + 1];
+    return pLexer->pContent[pLexer->current];
 }
 
 void noodleLexerSkipComment(NoodleLexer_t* pLexer)
@@ -847,22 +934,28 @@ void noodleLexerSkipComment(NoodleLexer_t* pLexer)
 
 void noodleLexerSkipSpaces(NoodleLexer_t* pLexer)
 {
-    char c = noodleLexerPeek(pLexer);
-    while (c!= '\0' && noodleLexerIsSpace(c))
+    char c = noodleLexerGet(pLexer);
+    while ((c = noodleLexerPeek(pLexer)) && noodleLexerIsSpace(c))
     {
         c = noodleLexerGet(pLexer);
     }
 }
 
-NoodleToken_t noodleLexerMakeAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind)
+void noodleLexerAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind, NoodleToken_t* pTokenOut)
 {
-    const NoodleToken_t token = { kind, pLexer->current, pLexer->current + 1};
+    assert(pLexer);
+    assert(pTokenOut);
+
     noodleLexerGet(pLexer);
-    return token;
+
+    *pTokenOut = noodleToken(kind, pLexer->current, pLexer->current + 1);
 }
 
-NoodleToken_t noodleLexerMakeIdentifier(NoodleLexer_t* pLexer)
+void noodleLexerIdentifier(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 {
+    assert(pLexer);
+    assert(pTokenOut);
+
     int start = pLexer->current;
 
     while(noodleLexerIsIdentifier(noodleLexerPeek(pLexer))) 
@@ -870,36 +963,53 @@ NoodleToken_t noodleLexerMakeIdentifier(NoodleLexer_t* pLexer)
         noodleLexerGet(pLexer);
     }
 
-    return (NoodleToken_t){ NOODLE_TOKEN_KIND_IDENTIFIER, start, pLexer->current };
+    *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_IDENTIFIER, start, pLexer->current);
 }
 
-NoodleToken_t noodleLexerMakeNumber(NoodleLexer_t* pLexer)
+void noodleLexerNumber(NoodleLexer_t* pLexer, NoodleToken_t* pOutToken)
 {
-    int start = pLexer->current;
-    const char* pStart = pLexer->pContent;
-    const char* pEnd = pLexer->pContent;
+    assert(pLexer);
+    assert(pOutToken);
 
-    while(noodleLexerIsNumber(noodleLexerGet(pLexer)))
+    int start = pLexer->current;
+
+    while (noodleLexerIsNumber(noodleLexerPeek(pLexer)))
     {
-        pEnd++;
+        noodleLexerGet(pLexer);
     }
 
     // Determine if this string is a long or a float, or a failed case
     char* pFloatEnd = NULL;
     char* pLongEnd = NULL;
 
-    strtof(pStart, &pFloatEnd);
-    strtol(pStart, &pLongEnd, 10);
+    strtof(pLexer->pContent + start, &pFloatEnd);
+    strtol(pLexer->pContent + start, &pLongEnd, 10);
 
     NoodleTokenKind_t kind = NOODLE_TOKEN_KIND_UNEXPECTED;
 
-    if (pEnd == pLongEnd)
+    if (pLongEnd == pLexer->pContent + pLexer->current)
         kind = NOODLE_TOKEN_KIND_INTEGER;
-    else if (pEnd == pFloatEnd)
+    else if (pFloatEnd == pLexer->pContent + pLexer->current)
         kind = NOODLE_TOKEN_KIND_FLOAT;
 
-    return (NoodleToken_t){ kind, start, pLexer->current };
+    *pOutToken = noodleToken(kind, start, pLexer->current);
 }
 
+void noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
+{
+    noodleLexerGet(pLexer); // Get the starting quote
 
+    int start = pLexer->current; 
+
+    // Iterate until another end quote is found
+    char c = '\0';
+    while((c = noodleLexerPeek(pLexer)) && c != '\"')
+    {
+        noodleLexerGet(pLexer);
+    }
+
+    noodleLexerGet(pLexer); // Push past the second quote 
+
+    *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_STRING, start, pLexer->current - 1);
+}
 
