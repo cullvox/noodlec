@@ -1,9 +1,8 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "noodle.h"
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,9 +11,7 @@
 
 
 
-
 #define NOODLE_GROUP_BUCKETS_COUNT 16
-
 
 
 
@@ -23,14 +20,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-
-
-typedef struct Noodle_t
-{
-    NoodleType_t        type;
-    NoodleGroup_t*    pParent;
-    char*               pName; // Must be freed
-} Noodle_t;
 
 typedef struct NoodleNode_t
 {
@@ -138,7 +127,7 @@ char            noodleLexerPeek(const NoodleLexer_t* pLexer);
 void            noodleLexerSkipComment(NoodleLexer_t* pLexer);
 void            noodleLexerSkipSpaces(NoodleLexer_t* pLexer);
 void            noodleLexerAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind, NoodleToken_t* pToken);
-void            noodleLexerIdentifier(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
+void            noodleLexerIdentifierOrBool(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
 void            noodleLexerNumber(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
 void            noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pToken);
 
@@ -234,7 +223,7 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
         switch (token.kind)
         {
             case NOODLE_TOKEN_KIND_LEFTCURLY:
-                pNewNoodle = (Noodle_t*)noodleGroup(pIdentifier, pRoot);
+                pNewNoodle = (Noodle_t*)noodleGroup(pIdentifier, pCurrent);
                 break;
             case NOODLE_TOKEN_KIND_INTEGER:
                 pNewNoodle = (Noodle_t*)noodleInt(pIdentifier, noodleParseInt(&lexer, &token), pCurrent);
@@ -377,12 +366,39 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
         if (pNewNoodle->type == NOODLE_TYPE_GROUP)
         {
             pCurrent = (NoodleGroup_t*)pNewNoodle;
-
         }
 
+        noodleLexerNextToken(&lexer, &token);
+        
         if (token.kind == NOODLE_TOKEN_KIND_COMMA)
+        {
+            noodleLexerNextToken(&lexer, &token);
+
+            // Spare commas are not recommended, but are allowed after a value 
+            // even if it's the last one
+            if (token.kind == NOODLE_TOKEN_KIND_RIGHTCURLY)
+                goto parseEndGroups;
+
+            continue;
+        }
 
         
+    parseEndGroups:
+
+        while (token.kind == NOODLE_TOKEN_KIND_RIGHTCURLY)
+        {
+            Noodle_t* pTemp = (Noodle_t*)pCurrent;
+
+            if (!pTemp->pParent)
+            {
+                pErrorExpected = "Identifier";
+                goto cleanupParse;
+            }
+
+            pCurrent = pTemp->pParent;
+
+            noodleLexerNextToken(&lexer, &token);
+        }
 
     }
 
@@ -404,17 +420,172 @@ cleanupParse:
 
 }
 
-NoodleGroup_t*          noodleGroupFrom(const NoodleGroup_t* group, const char* name);
-int                     noodleIntFrom(const NoodleGroup_t* group, const char* name);
-float                   noodleFloatFrom(const NoodleGroup_t* group, const char* name);
-NOODLE_BOOL             noodleBoolFrom(const NoodleGroup_t* group, const char* name);
-const char*             noodleStringFrom(const NoodleGroup_t* group, const char* name);
-const NoodleArray_t*    noodleArrayFrom(const NoodleGroup_t* group, const char* name);
-size_t                  noodleCount(const Noodle_t* noodle);
-int                     noodleIntAt(const NoodleArray_t* array, size_t index);
-float                   noodleFloatAt(const NoodleArray_t* array, size_t index);
-NOODLE_BOOL             noodleBoolAt(const NoodleArray_t* array, size_t index);
-const char*             noodleStringAt(const NoodleArray_t* array, size_t index);
+NoodleGroup_t* noodleParseFromFile();
+
+Noodle_t* noodleFrom(const NoodleGroup_t* pGroup, const char* pName)
+{
+    assert(pGroup);
+    assert(pName);
+
+    size_t index = noodleGroupHashFunction(pName) % NOODLE_GROUP_BUCKETS_COUNT;
+
+    NoodleNode_t* pCurrent = pGroup->ppBuckets[index];
+    
+    while (pCurrent)
+    {
+        if (strcmp(pCurrent->pNoodle->pName, pName) == 0) break;
+
+        pCurrent = pCurrent->pNext;
+    }
+
+    if (!pCurrent) return NULL;
+
+    return pCurrent->pNoodle;
+}
+
+NoodleGroup_t* noodleGroupFrom(const NoodleGroup_t* pGroup, const char* pName)
+{
+    assert(pGroup);
+    assert(pName);
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return NULL;
+
+    assert(pNoodle->type == NOODLE_TYPE_GROUP && "Requested noodle was not a group!");
+    if (pNoodle->type != NOODLE_TYPE_GROUP) return NULL;
+
+    return (NoodleGroup_t*)pNoodle;
+}
+
+int noodleIntFrom(const NoodleGroup_t* pGroup, const char* pName, NOODLE_BOOL* pSucceeded)
+{
+    assert(pGroup);
+    assert(pName);
+
+    if (pSucceeded) *pSucceeded = NOODLE_FALSE;
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return 0;
+
+    assert(pNoodle->type == NOODLE_TYPE_INTEGER && "Requested noodle was not am integer!");
+    if (pNoodle->type != NOODLE_TYPE_INTEGER) return 0;
+
+    if (pSucceeded) *pSucceeded = true;
+    return ((NoodleValue_t*)pNoodle)->i;
+}
+
+float noodleFloatFrom(const NoodleGroup_t* pGroup, const char* pName, NOODLE_BOOL* pSucceeded)
+{
+    assert(pGroup);
+    assert(pName);
+
+    if (pSucceeded) *pSucceeded = NOODLE_FALSE;
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return 0.0f;
+
+    assert(pNoodle->type == NOODLE_TYPE_FLOAT && "Requested noodle was not a float!");
+    if (pNoodle->type != NOODLE_TYPE_FLOAT) return 0.0f;
+
+    if (pSucceeded) *pSucceeded = NOODLE_TRUE;
+    return ((NoodleValue_t*)pNoodle)->f;
+}
+
+NOODLE_BOOL noodleBoolFrom(const NoodleGroup_t* pGroup, const char* pName, NOODLE_BOOL* pSucceeded)
+{
+    assert(pGroup);
+    assert(pName);
+
+    if (pSucceeded) *pSucceeded = NOODLE_FALSE;
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return NOODLE_FALSE;
+
+    assert(pNoodle->type == NOODLE_TYPE_BOOLEAN && "Requested noodle was not a boolean!");
+    if (pNoodle->type != NOODLE_TYPE_BOOLEAN) return NOODLE_FALSE;
+
+    if (pSucceeded) *pSucceeded = NOODLE_TRUE;
+    return ((NoodleValue_t*)pNoodle)->b;
+}
+
+const char* noodleStringFrom(const NoodleGroup_t* pGroup, const char* pName, NOODLE_BOOL* pSucceeded)
+{
+    assert(pGroup);
+    assert(pName);
+
+    if (pSucceeded) *pSucceeded = NOODLE_FALSE;
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return NOODLE_FALSE;
+
+    assert(pNoodle->type == NOODLE_TYPE_STRING && "Requested noodle was not a string!");
+    if (pNoodle->type != NOODLE_TYPE_STRING) return NOODLE_FALSE;
+
+    if (pSucceeded) *pSucceeded = NOODLE_TRUE;
+    return ((NoodleValue_t*)pNoodle)->s; 
+}
+
+const NoodleArray_t* noodleArrayFrom(const NoodleGroup_t* pGroup, const char* pName)
+{
+    assert(pGroup);
+    assert(pName);
+
+    Noodle_t* pNoodle = noodleFrom(pGroup, pName);
+    if (!pNoodle) return NULL;
+
+    assert(pNoodle->type == NOODLE_TYPE_ARRAY && "Requested noodle was not an array!");
+    if (pNoodle->type != NOODLE_TYPE_ARRAY) return NULL;
+
+    return (NoodleArray_t*)pNoodle; 
+}
+
+size_t noodleCount(const Noodle_t* pNoodle)
+{
+    switch (pNoodle->type)
+    {
+    case NOODLE_TYPE_GROUP: return ((NoodleGroup_t*)pNoodle)->count;
+    case NOODLE_TYPE_ARRAY: return ((NoodleArray_t*)pNoodle)->count;
+    default:
+        assert(false && "Type not a valid array or group!");
+        return 0;
+    }
+}
+
+int noodleIntAt(const NoodleArray_t* pArray, size_t index)
+{
+    assert(pArray);
+    assert(pArray->type == NOODLE_TYPE_INTEGER);
+    assert(pArray->count > index);
+
+    return pArray->pIntegers[index];
+}
+
+float noodleFloatAt(const NoodleArray_t* pArray, size_t index)
+{
+    assert(pArray);
+    assert(pArray->type == NOODLE_TYPE_FLOAT);
+    assert(pArray->count > index);
+
+    return pArray->pFloats[index];
+}
+
+NOODLE_BOOL noodleBoolAt(const NoodleArray_t* pArray, size_t index)
+{
+    assert(pArray);
+    assert(pArray->type == NOODLE_TYPE_BOOLEAN);
+    assert(pArray->count > index);
+
+    return pArray->pBooleans[index];
+}
+
+const char* noodleStringAt(const NoodleArray_t* pArray, size_t index)
+{
+    assert(pArray);
+    assert(pArray->type == NOODLE_TYPE_STRING);
+    assert(pArray->count > index);
+
+    return pArray->ppStrings[index];
+}
 
 void noodleFree(Noodle_t* pNoodle)
 {
@@ -677,6 +848,7 @@ NOODLE_BOOL noodleGroupInsert(NoodleGroup_t* pGroup, const char* pName, Noodle_t
         pCurrent = pCurrent->pNext; 
     }
 
+    pGroup->count++;
     pCurrent->pNext = pNode;
     return true;
 }
@@ -803,7 +975,7 @@ NOODLE_BOOL noodleLexerNextToken(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut
         case 'k':
         case 'l':
         case 'm':
-        case 'n':
+        case 'n': 
         case 'o':
         case 'p':
         case 'q':
@@ -843,7 +1015,7 @@ NOODLE_BOOL noodleLexerNextToken(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut
         case 'Y':
         case 'Z':
         case '_':
-            noodleLexerIdentifier(pLexer, pTokenOut);
+            noodleLexerIdentifierOrBool(pLexer, pTokenOut);
             break;
         case '0':
         case '1':
@@ -951,7 +1123,7 @@ void noodleLexerAtom(NoodleLexer_t* pLexer, NoodleTokenKind_t kind, NoodleToken_
     *pTokenOut = noodleToken(kind, pLexer->current, pLexer->current + 1);
 }
 
-void noodleLexerIdentifier(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
+void noodleLexerIdentifierOrBool(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 {
     assert(pLexer);
     assert(pTokenOut);
@@ -961,6 +1133,14 @@ void noodleLexerIdentifier(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
     while(noodleLexerIsIdentifier(noodleLexerPeek(pLexer))) 
     {
         noodleLexerGet(pLexer);
+    }
+
+    // It's easier to catch booleans here so we do
+    if (((sizeof("true") - 1 == pLexer->current - start) || (sizeof("false") - 1 == pLexer->current - start)) 
+        && ((strncmp(pLexer->pContent + start, "true", pLexer->current - start) == 0) || (strncmp(pLexer->pContent + start, "false", pLexer->current - start) == 0)))
+    {
+        *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_BOOLEAN, start, pLexer->current);
+        return;
     }
 
     *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_IDENTIFIER, start, pLexer->current);
@@ -997,6 +1177,9 @@ void noodleLexerNumber(NoodleLexer_t* pLexer, NoodleToken_t* pOutToken)
 
 void noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 {
+    assert(pLexer);
+    assert(pTokenOut);
+
     noodleLexerGet(pLexer); // Get the starting quote
 
     int start = pLexer->current; 
@@ -1012,4 +1195,3 @@ void noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 
     *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_STRING, start, pLexer->current - 1);
 }
-

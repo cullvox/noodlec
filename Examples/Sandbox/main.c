@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 
 #include "noodle.h"
@@ -47,7 +48,21 @@ int main(int argc, const char* argv[])
 {
     char pErrorBuffer[256] = {0};
 
-    noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
+    NoodleGroup_t* pConfig = noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
+	if (!pConfig)
+	{
+		return 1;
+	}
 
-	printf("%s\n", pContent);
+	NoodleGroup_t* pWindowConfig = noodleGroupFrom(pConfig, "window");
+	assert(pWindowConfig);
+
+
+	int monitor = noodleIntFrom(pWindowConfig, "monitor", NULL);
+	const NoodleArray_t* pSomeValue = noodleArrayFrom(pWindowConfig, "someValue");
+	assert(pSomeValue);
+
+	int val_1 = noodleIntAt(pSomeValue, 1);
+
+	
 }
