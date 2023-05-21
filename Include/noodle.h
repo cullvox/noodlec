@@ -2,14 +2,8 @@
 #define NOODLE_PARSER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
-#ifndef NOODLE_NO_STDBOOL_H
-    #include <stdbool.h>
-#endif
-
-#ifndef NOODLE_NO_STDLIB_H
-    #include <stdlib.h>
-#endif
 
 #ifndef NOODLE_BOOL
 #define NOODLE_BOOL bool
@@ -24,7 +18,7 @@
 #endif
 
 #ifndef NOODLE_NULLABLE
-#define NOODLE_NULLABLE
+#define NOODLE_NULLABLE // Any value prefixed with this can be set to NULL/0
 #endif
 
 #ifndef NOODLE_MALLOC
@@ -46,22 +40,21 @@ typedef enum NoodleType_t
 } NoodleType_t;
 
 
-// Every noodle type can be cast to Noodle_t to get types and names
+// Every noodle type can be cast to Noodle_t to get it's type and name
 typedef struct Noodle_t Noodle_t;
 typedef struct NoodleGroup_t NoodleGroup_t;
 typedef struct NoodleArray_t NoodleArray_t;
 typedef struct NoodleValue_t NoodleValue_t;
 
+typedef NOODLE_BOOL (* NoodleForeachGroupCallback_t)(Noodle_t* pNoodle); // Return false to break
+
 typedef struct Noodle_t
 {
     NoodleType_t        type;
     NoodleGroup_t*      pParent;
-    char*               pName; // Must be freed
+    char*               pName;
 } Noodle_t;
 
-
-typedef bool (* NoodleForeachInGroupFunctionCallback)(Noodle_t* pNoodle); // Return false to break
-typedef bool (* NoodleForeachInArrayFunctionCallback)(Noodle_t* pNoodle); // Return false to break
 
 NoodleGroup_t*          noodleParse(const char* pContent, char* NOODLE_NULLABLE pErrorBuffer, size_t NOODLE_NULLABLE bufferSize);
 NoodleGroup_t*          noodleParseFromFile(const char* pPath, char* NOODLE_NULLABLE pErrorBuffer, size_t NOODLE_NULLABLE bufferSize);
@@ -77,10 +70,9 @@ int                     noodleIntAt(const NoodleArray_t* pArray, size_t index);
 float                   noodleFloatAt(const NoodleArray_t* pArray, size_t index);
 NOODLE_BOOL             noodleBoolAt(const NoodleArray_t* pArray, size_t index);
 const char*             noodleStringAt(const NoodleArray_t* pArray, size_t index);
-void                    noodleFree(Noodle_t* NOODLE_NULLABLE noodle);
+void                    noodleCleanup(NoodleGroup_t* pGroup);
 
-bool                    noodleHas(const NoodleGroup_t* pGroup, const char* pName);
-void                    noodleForeachInGroup(NoodleGroup_t* pGroup, NoodleForeachInGroupFunctionCallback callback);
-void                    noodleForeachInArray(NoodleArray_t* pArray, NoodleForeachInArrayFunctionCallback callback);
+NOODLE_BOOL             noodleHas(const NoodleGroup_t* pGroup, const char* pName);
+void                    noodleGroupForeach(NoodleGroup_t* pGroup, NoodleForeachGroupCallback_t callback);
 
 #endif // NOODLE_PARSER_H

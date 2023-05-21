@@ -1,6 +1,8 @@
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
 
 #include "noodle.h"
 
@@ -154,13 +156,13 @@ NoodleValue_t*  noodleString(char* pName, char* value, NoodleGroup_t* pParent);
 size_t          noodleGroupHashFunction(const char* pName);
 NOODLE_BOOL     noodleGroupInsert(NoodleGroup_t* pGroup, const char* pName, Noodle_t* pNoodle);
 
+void            noodleFree(Noodle_t* pNoodle);
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // FUNCTION DEFINITIONS
 ////////////////////////////////////////////////////////////////////////////////
-
 
 
 
@@ -179,8 +181,6 @@ NoodleGroup_t* noodleParse(const char* pContent, char* pErrorBuffer, size_t buff
         pErrorBuffer = NULL;
         bufferSize = 0;
     }
-
-    printf("%s", pContent); // DEBUG
 
     // Create the root group to contain the other noodles
     NoodleGroup_t* pRoot = noodleGroup(NULL, NULL);
@@ -420,7 +420,46 @@ cleanupParse:
 
 }
 
-NoodleGroup_t* noodleParseFromFile();
+NoodleGroup_t* noodleParseFromFile(const char* pPath, char* pErrorBuffer, size_t bufferSize)
+{
+    assert(pPath);
+
+    if (!pErrorBuffer || bufferSize < 1)
+    {
+        pErrorBuffer = NULL;
+        bufferSize = 0;
+    }
+
+    FILE* pFile = fopen(pPath, "rb");
+    if (!pFile) goto cleanupFile;
+
+    // Get file size
+    fseek(pFile, 0, SEEK_END);
+    size_t size = ftell(pFile);
+    fseek(pFile, 0, SEEK_SET);
+
+    // Allocate the file in memory
+    char* pContent = NOODLE_MALLOC(size);
+    if (!pContent) goto cleanupMemory;
+
+    // Copy the file to memory
+    if (fread(pContent, 1, size, pFile) != size) goto cleanupRead;
+
+    return noodleParse(pContent, pErrorBuffer, bufferSize);
+
+cleanupFile:
+    snprintf(pErrorBuffer, bufferSize, "Could not open file!");
+    return NULL;
+
+cleanupRead:
+    snprintf(pErrorBuffer, bufferSize, "Could not read file!");
+    return NULL;
+
+cleanupMemory:
+    snprintf(pErrorBuffer, bufferSize, "Could not allocate memory!");
+    return NULL;
+
+}
 
 Noodle_t* noodleFrom(const NoodleGroup_t* pGroup, const char* pName)
 {
@@ -587,37 +626,55 @@ const char* noodleStringAt(const NoodleArray_t* pArray, size_t index)
     return pArray->ppStrings[index];
 }
 
-void noodleFree(Noodle_t* pNoodle)
+void noodleCleanup(NoodleGroup_t* pGroup)
 {
-    switch (pNoodle->type)
+    noodleFree((Noodle_t*)pGroup);
+}
+
+NOODLE_BOOL noodleHas(const NoodleGroup_t* pGroup, const char* pName)
+{
+    assert(pGroup);
+    assert(pName);
+
+    size_t index = noodleGroupHashFunction(pName) % pGroup->bucketCount;
+
+    NoodleNode_t* pNode = pGroup->ppBuckets[index];
+
+    while (pNode)
     {
-        case NOODLE_TYPE_GROUP:
-            NoodleGroup_t* pGroup = (NoodleGroup_t*)pNoodle;
-            NoodleNode_t* pNode = NULL;
-            NoodleNode_t* pToFree = NULL;
+        if (strcmp(pName, pNode->pNoodle->pName) == 0)
+            return NOODLE_TRUE;
 
-            for (int i = 0; i < pGroup->bucketCount; i++)
-            {
-                pNode = pGroup->ppBuckets[i];    
-                
-                while (pNode != NULL)
-                {
-                    noodleFree(pNode->pNoodle);
+        pNode = pNode->pNext;
+    }
 
-                    pToFree = pNode;
-                    pNode = pNode->pNext;
-                    
-                    NOODLE_FREE(pToFree);
-                    pToFree = NULL;
-                }
-            }
-            break;
+    return NOODLE_FALSE;
+}
+
+void noodleGroupForeach(NoodleGroup_t* pGroup, NoodleForeachGroupCallback_t callback)
+{
+    assert(pGroup);
+    assert(callback);
+
+    for (int i = 0; i < NOODLE_GROUP_BUCKETS_COUNT; i++)
+    {
+        NoodleNode_t* pNode = pGroup->ppBuckets[i];
+
+        while (pNode)
+        {
+            if (!callback(pNode->pNoodle)) break;
+            pNode = pNode->pNext;
+        }
     }
 }
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // HELPER FUNCTION DEFINITIONS
 ////////////////////////////////////////////////////////////////////////////////
+
+
 
 char* noodleStringDuplicate(const char* pStr)
 {
@@ -1194,4 +1251,58 @@ void noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
     noodleLexerGet(pLexer); // Push past the second quote 
 
     *pTokenOut = noodleToken(NOODLE_TOKEN_KIND_STRING, start, pLexer->current - 1);
+}
+
+void noodleFree(Noodle_t* pNoodle)
+{
+    switch (pNoodle->type)
+    {
+        case NOODLE_TYPE_GROUP:
+        {
+            NoodleGroup_t* pGroup = (NoodleGroup_t*)pNoodle;
+            NoodleNode_t* pNode = NULL;
+            NoodleNode_t* pToFree = NULL;
+
+            for (int i = 0; i < pGroup->bucketCount; i++)
+            {
+                pNode = pGroup->ppBuckets[i];    
+                
+                while (pNode != NULL)
+                {
+                    noodleFree(pNode->pNoodle);
+
+                    pToFree = pNode;
+                    pNode = pNode->pNext;
+                    
+                    NOODLE_FREE(pToFree);
+                    pToFree = NULL;
+                }
+            }
+
+            NOODLE_FREE(pGroup);
+            break;
+        }
+        
+        case NOODLE_TYPE_ARRAY:
+        {
+            NoodleArray_t* pArray = (NoodleArray_t*)pNoodle;
+            
+            NOODLE_FREE(pArray->pIntegers);
+            NOODLE_FREE(pArray);
+            break;
+        }
+
+        case NOODLE_TYPE_STRING:
+        {
+            NoodleValue_t* pValue = (NoodleValue_t*)pNoodle;
+            NOODLE_FREE(pValue->s);
+            break;
+        }
+
+        case NOODLE_TYPE_INTEGER:
+        case NOODLE_TYPE_FLOAT:
+        case NOODLE_TYPE_BOOLEAN:
+            NOODLE_FREE(pNoodle);
+            break;
+    }
 }
