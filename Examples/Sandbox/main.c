@@ -49,8 +49,10 @@ int main(int argc, const char* argv[])
 {
     char pErrorBuffer[256] = {0};
 
-    NoodleGroup_t* pConfig = noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
-	if (!pConfig) 
+	printf("Basic Noodle Parser Example written in C!\n");
+
+  	NoodleGroup_t* pConfig = noodleParse(pContent, pErrorBuffer, sizeof(pErrorBuffer) / sizeof(pErrorBuffer[0]));
+		if (!pConfig) 
 	{
 		printf("%s\n", pErrorBuffer);
 		return EXIT_FAILURE;

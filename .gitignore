@@ -1,1 +1,5 @@
+# We use this folder to build into, keep the directories clean
 build
+
+# CMAKE
+CMakeCache.txt
