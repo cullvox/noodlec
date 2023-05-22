@@ -914,7 +914,7 @@ NoodleLexer_t noodleLexer(const char* pContent)
     return (NoodleLexer_t){pContent, 0, 0, 0};
 }
 
-static NOODLE_BOOL noodleLexerIsIdentifier(char c)
+NOODLE_BOOL noodleLexerIsIdentifier(char c)
 {
     switch (c)
     {
@@ -1254,6 +1254,9 @@ void noodleLexerString(NoodleLexer_t* pLexer, NoodleToken_t* pTokenOut)
 
 void noodleFree(Noodle_t* pNoodle)
 {
+    // Free the name of the any noodle
+    NOODLE_FREE(pNoodle->pName);
+    
     switch (pNoodle->type)
     {
         case NOODLE_TYPE_GROUP:
@@ -1272,7 +1275,7 @@ void noodleFree(Noodle_t* pNoodle)
 
                     pToFree = pNode;
                     pNode = pNode->pNext;
-                    
+
                     NOODLE_FREE(pToFree);
                     pToFree = NULL;
                 }
@@ -1285,6 +1288,10 @@ void noodleFree(Noodle_t* pNoodle)
         case NOODLE_TYPE_ARRAY:
         {
             NoodleArray_t* pArray = (NoodleArray_t*)pNoodle;
+
+            if (pArray->type == NOODLE_TYPE_STRING)
+                for (int i = 0; i < pArray->count; i++)
+                    NOODLE_FREE(pArray->ppStrings[i]);
             
             NOODLE_FREE(pArray->pIntegers);
             NOODLE_FREE(pArray);
@@ -1295,6 +1302,7 @@ void noodleFree(Noodle_t* pNoodle)
         {
             NoodleValue_t* pValue = (NoodleValue_t*)pNoodle;
             NOODLE_FREE(pValue->s);
+            NOODLE_FREE(pValue);
             break;
         }
 
