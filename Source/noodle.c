@@ -118,7 +118,6 @@ typedef struct NoodleLexer_t
 
 
 
-
 char*           noodleStringDuplicate(const char* str);
 const char*     noodleStringFromTokenKind(NoodleTokenKind_t kind);
 

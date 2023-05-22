@@ -17,8 +17,9 @@
 #define NOODLE_FALSE false
 #endif
 
+// Any value prefixed with this can be set to NULL or 0
 #ifndef NOODLE_NULLABLE
-#define NOODLE_NULLABLE // Any value prefixed with this can be set to NULL/0
+#define NOODLE_NULLABLE 
 #endif
 
 #ifndef NOODLE_MALLOC
