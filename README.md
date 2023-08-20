@@ -1,6 +1,8 @@
 
-# Noodle C99 Parser
+# noodlec
 ![CMake Workflow](https://github.com/cadenmiller/noodlec/actions/workflows/cmake-multi-platform.yml/badge.svg)
+
+![Noodle Logo](https://raw.githubusercontent.com/cadenmiller/noodlec/cc84de0fc0f7911c4fc080a8a9359c4168ba38c4/Images/noodle.svg)
 
 Welcome to the Noodle C99 Parser project! This repository contains a C99 parser designed for the Noodle data language. Noodle is a lightweight language for data representation. This parser lets you seamlessly integrate Noodle data structures into C applications.
 
